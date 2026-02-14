@@ -1,60 +1,78 @@
 const mineflayer = require('mineflayer');
+const { SocksClient } = require('socks');
+const axios = require('axios'); // Add "axios": "^1.6.0" to package.json
 
 const CONFIG = {
-    host: 'noBnoT.org', 
+    host: 'noBnoT.org',
     port: 25565,
-    botCount: 10,
+    botCount: 10, // NOW WE CAN GO TO 10!
     password: 'SafeBot123!',
-    joinDelay: 10000,       
-    verifyDelay: 5000,      // 5s wait before re-joining for TCPShield
-    spamInterval: 2500
+    // This API pulls fresh proxies so you don't have to provide them
+    proxyApi: 'https://api.proxyscrape.com'
 };
 
-function createBot(id, botName = null) {
-    const name = botName || `BOT_${Math.random().toString(36).substring(2, 7)}`.toUpperCase();
-    
-    console.log(`[Slot ${id + 1}] Connecting: ${name}...`);
+let proxyList = [];
+
+async function getFreshProxies() {
+    try {
+        console.log("Warping IPs... Fetching fresh proxy list.");
+        const res = await axios.get(CONFIG.proxyApi);
+        proxyList = res.data.trim().split('\n').map(p => p.trim());
+        console.log(`Found ${proxyList.length} potential 'Warp' points.`);
+    } catch (e) {
+        console.log("Failed to fetch proxies. Check your internet connection.");
+    }
+}
+
+function createBot(id) {
+    // Pick a random proxy from our freshly scraped list
+    const proxyStr = proxyList[Math.floor(Math.random() * proxyList.length)];
+    if (!proxyStr) return setTimeout(() => createBot(id), 5000);
+
+    const [pHost, pPort] = proxyStr.split(':');
+    const name = `Warped_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+
+    console.log(`[Bot ${id + 1}] Warping via ${proxyStr}...`);
 
     const bot = mineflayer.createBot({
         host: CONFIG.host,
         port: CONFIG.port,
         username: name,
-        version: '1.8.8'
+        version: '1.8.8',
+        connect: (client) => {
+            SocksClient.createConnection({
+                proxy: { host: pHost, port: parseInt(pPort), type: 5 },
+                command: 'connect',
+                destination: { host: CONFIG.host, port: CONFIG.port }
+            }, (err, info) => {
+                if (err) {
+                    // If the proxy is dead (common with free lists), try a different one
+                    return createBot(id); 
+                }
+                client.setSocket(info.socket);
+                client.emit('connect');
+            });
+        }
     });
 
-    bot.on('message', (json) => {
-        const m = json.toString().toLowerCase();
-        if (m.includes('/register')) bot.chat(`/register ${CONFIG.password} ${CONFIG.password}`);
-        if (m.includes('/login')) bot.chat(`/login ${CONFIG.password}`);
-    });
-
-    bot.once('spawn', () => {
-        console.log(`>>> SUCCESS: ${name} PASSED THE SHIELD!`);
+    bot.on('spawn', () => {
+        console.log(`>>> ${name} Successfully Warped through IP ${pHost}`);
         setInterval(() => {
             if (bot.entity) bot.chat(Math.random().toString(36).substring(2, 8).toUpperCase());
-        }, CONFIG.spamInterval);
+        }, 5000);
     });
 
     bot.on('kicked', (reason) => {
-        const kickMsg = reason.toString();
-        
-        if (kickMsg.includes("verified") || kickMsg.includes("re-connect") || kickMsg.includes("analyzing")) {
-            console.log(`[Shield] ${name} needs verification. Waiting ${CONFIG.verifyDelay/1000}s...`);
-            // We MUST wait a few seconds or we get "Logged in too fast"
-            setTimeout(() => createBot(id, name), CONFIG.verifyDelay);
-        } else if (kickMsg.includes("too fast")) {
-            console.log(`[RateLimit] ${name} was too fast. Backing off...`);
-            setTimeout(() => createBot(id), 20000);
-        } else {
-            console.log(`[Kicked] ${name}: ${kickMsg.substring(0, 40)}`);
-            setTimeout(() => createBot(id), 30000);
-        }
+        console.log(`[!] ${name} lost connection. Re-warping...`);
+        setTimeout(() => createBot(id), 10000);
     });
 
     bot.on('error', () => {});
 }
 
-// Initial slow roll-out
-for (let i = 0; i < CONFIG.botCount; i++) {
-    setTimeout(() => createBot(i), i * CONFIG.joinDelay);
-}
+// Start the process
+getFreshProxies().then(() => {
+    for (let i = 0; i < CONFIG.botCount; i++) {
+        setTimeout(() => createBot(i), i * 5000);
+    }
+});
