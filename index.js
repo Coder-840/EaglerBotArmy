@@ -1,94 +1,87 @@
 const mineflayer = require('mineflayer');
 const Socks = require('socks').SocksClient;
+const axios = require('axios');
 
 const CONFIG = {
     host: 'noBnoT.org',
     port: 25565,
     botCount: 10,
     password: 'SafeBot123!',
-    joinDelay: 45000, 
-    verifyDelay: 8000,
-    spamInterval: 2500,
-    // Filtered SOCKS5 Candidates
-    proxies: [
-        { host: '110.235.248.142', port: 1080 },
-        { host: '202.62.59.218', port: 1080 },
-        { host: '136.228.163.150', port: 5678 },
-        { host: '31.42.2.113', port: 5678 },
-        { host: '8.211.195.173', port: 1080 },
-        { host: '195.133.41.113', port: 1080 },
-        { host: '144.124.253.249', port: 1080 },
-        { host: '202.55.175.237', port: 1080 },
-        { host: '197.234.13.27', port: 4145 },
-        { host: '199.229.254.129', port: 4145 }
-    ]
+    joinDelay: 20000, 
+    // API for fresh SOCKS5 proxies
+    proxyApi: 'https://api.proxyscrape.com'
 };
 
+let proxyList = [];
+let currentProxyIdx = 0;
+
+// Fetch fresh proxies from ProxyScrape
+async function refreshProxies() {
+    try {
+        const response = await axios.get(CONFIG.proxyApi);
+        proxyList = response.data.split('\r\n').filter(p => p.length > 0).map(p => {
+            const [host, port] = p.split(':');
+            return { host, port: parseInt(port) };
+        });
+        console.log(`[System] Scraped ${proxyList.length} fresh SOCKS5 proxies.`);
+    } catch (err) {
+        console.error('[Error] Failed to fetch proxies:', err.message);
+    }
+}
+
 function createBot(id, botName = null) {
-    const name = botName || `USER_${Math.random().toString(36).substring(2, 7)}`.toUpperCase();
+    if (proxyList.length === 0) return console.log("Waiting for proxies...");
     
-    // Rotate through proxies (1 proxy per bot to maximize reliability)
-    const proxy = CONFIG.proxies[id % CONFIG.proxies.length];
+    const name = botName || `USER_${Math.random().toString(36).substring(2, 7)}`.toUpperCase();
+    const proxy = proxyList[currentProxyIdx % proxyList.length];
+    currentProxyIdx++;
 
-    console.log(`[Slot ${id + 1}] Connecting ${name} via ${proxy.host}:${proxy.port}...`);
+    console.log(`[Slot ${id + 1}] Attempting ${name} via ${proxy.host}:${proxy.port}...`);
 
-    const botOptions = {
+    const bot = mineflayer.createBot({
         host: CONFIG.host,
         port: CONFIG.port,
         username: name,
         version: '1.8.8',
-        physicsEnabled: false,
-        fakeHost: CONFIG.host,
         connect: (client) => {
             Socks.createConnection({
-                proxy: {
-                    host: proxy.host,
-                    port: proxy.port,
-                    type: 5 
-                },
+                proxy: { host: proxy.host, port: proxy.port, type: 5 },
                 command: 'connect',
-                timeout: 15000, // Longer timeout for public proxies
-                destination: {
-                    host: CONFIG.host,
-                    port: CONFIG.port
-                }
+                timeout: 8000, // Reject slow proxies quickly
+                destination: { host: CONFIG.host, port: CONFIG.port }
             }, (err, info) => {
                 if (err) {
-                    console.log(`[Proxy Error] ${name} (${proxy.host}) failed: ${err.message}`);
-                    return;
+                    // Failover: if proxy is dead, try the next one immediately
+                    return createBot(id, name); 
                 }
                 client.setSocket(info.socket);
                 client.emit('connect');
             });
         }
-    };
-
-    const bot = mineflayer.createBot(botOptions);
-
-    // --- Logic Handlers ---
-    bot.on('message', (json) => {
-        const m = json.toString().toLowerCase();
-        if (m.includes('/register')) bot.chat(`/register ${CONFIG.password} ${CONFIG.password}`);
-        if (m.includes('/login')) bot.chat(`/login ${CONFIG.password}`);
     });
 
     bot.once('spawn', () => {
-        console.log(`>>> ${name} IS IN.`);
-        setInterval(() => {
-            if (bot.entity) bot.chat(Math.floor(Math.random() * 0xffffff).toString(16).toUpperCase());
-        }, CONFIG.spamInterval);
+        console.log(`>>> SUCCESS: ${name} is in via ${proxy.host}`);
+        // Basic Anti-AFK
+        setInterval(() => { if (bot.entity) bot.setControlState('jump', true); setTimeout(() => { if (bot.entity) bot.setControlState('jump', false); }, 500); }, 20000);
     });
 
     bot.on('kicked', (reason) => {
         console.log(`[Kicked] ${name}: ${reason}`);
-        setTimeout(() => createBot(id), 60000); // 1-minute retry
+        setTimeout(() => createBot(id), 30000);
     });
 
-    bot.on('error', (err) => {});
+    bot.on('error', () => {}); 
 }
 
-// Start sequence
-console.log("Starting Proxy-Cram sequence...");
-for (let i = 0; i < CONFIG.botCount; i++) {
-    setTimeout(() => createBot(i), i * CONFIG.joinDelay);
+// Main Execution
+async function start() {
+    await refreshProxies();
+    if (proxyList.length === 0) return console.log("No proxies found. Exit.");
+
+    for (let i = 0; i < CONFIG.botCount; i++) {
+        setTimeout(() => createBot(i), i * CONFIG.joinDelay);
+    }
 }
+
+start();
