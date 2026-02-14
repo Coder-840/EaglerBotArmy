@@ -1,10 +1,11 @@
 {
-  "name": "eagler-bot-army",
-  "version": "1.3.0",
+  "name": "eagler-warp-bot",
+  "version": "1.4.0",
   "main": "index.js",
   "dependencies": {
     "mineflayer": "^4.20.0",
-    "socks": "^2.8.1"
+    "socks": "^2.8.1",
+    "axios": "^1.6.0"
   },
   "scripts": {
     "start": "node index.js"
