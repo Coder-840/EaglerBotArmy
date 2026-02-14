@@ -8,7 +8,7 @@ const CONFIG = {
     botCount: 10,
     password: 'SafeBot123!',
     joinDelay: 15000, 
-    // This API gets SOCKS5 proxies from countries less likely to be blacklisted
+    // Updated API URL
     proxyApi: 'https://api.proxyscrape.com'
 };
 
@@ -17,13 +17,20 @@ let currentProxyIdx = 0;
 
 async function refreshProxies() {
     try {
-        console.log("[System] Scraping fresh proxies...");
+        console.log("[System] Scraping fresh SOCKS5 proxies...");
         const response = await axios.get(CONFIG.proxyApi);
-        proxyList = response.data.split('\r\n').filter(p => p.includes(':')).map(p => {
+        // Clean up the response and parse IPs
+        proxyList = response.data.trim().split(/\s+/).filter(p => p.includes(':')).map(p => {
             const [host, port] = p.split(':');
             return { host, port: parseInt(port) };
         });
-        console.log(`[System] Found ${proxyList.length} candidates.`);
+        
+        if (proxyList.length === 0) {
+            console.log("[!] Scraper returned 0. Using hardcoded fallback...");
+            proxyList = [{ host: '127.0.0.1', port: 1080 }]; // Placeholder
+        } else {
+            console.log(`[System] Found ${proxyList.length} proxy candidates.`);
+        }
     } catch (err) {
         console.error('[Error] Scraper failed:', err.message);
     }
@@ -32,20 +39,19 @@ async function refreshProxies() {
 function createBot(id, botName = null) {
     const name = botName || `USER_${Math.random().toString(36).substring(2, 7)}`.toUpperCase();
     
-    // FIRST 4 BOTS: Connect directly (no proxy) to ensure they get in.
-    // OTHERS: Use proxies.
-    const useProxy = id >= 4;
+    // First 2 bots direct (safer than 4), rest proxy
+    const useProxy = id >= 2;
     const proxy = useProxy ? proxyList[currentProxyIdx++ % proxyList.length] : null;
 
-    console.log(`[Slot ${id + 1}] ${name} -> ${useProxy ? 'Proxy: ' + proxy.host : 'DIRECT CONNECTION'}`);
+    console.log(`[Slot ${id + 1}] ${name} -> ${useProxy ? 'Proxy: ' + proxy.host : 'DIRECT'}`);
 
     const botOptions = {
         host: CONFIG.host,
         port: CONFIG.port,
         username: name,
         version: '1.8.8',
-        physicsEnabled: false,
-        hideErrors: true
+        fakeHost: CONFIG.host, // CRITICAL: Makes connection look like it came from noBnoT.org
+        physicsEnabled: false
     };
 
     if (useProxy && proxy) {
@@ -53,12 +59,12 @@ function createBot(id, botName = null) {
             Socks.createConnection({
                 proxy: { host: proxy.host, port: proxy.port, type: 5 },
                 command: 'connect',
-                timeout: 6000, 
+                timeout: 10000, 
                 destination: { host: CONFIG.host, port: CONFIG.port }
             }, (err, info) => {
                 if (err) {
-                    console.log(`[Fail] Proxy ${proxy.host} dead. Trying next...`);
-                    return createBot(id, name); // Retry this slot with next proxy
+                    console.log(`[Dead Proxy] ${proxy.host} failed. Retrying...`);
+                    return createBot(id, name);
                 }
                 client.setSocket(info.socket);
                 client.emit('connect');
@@ -76,27 +82,30 @@ function createBot(id, botName = null) {
 
     bot.once('spawn', () => {
         console.log(`>>> SUCCESS: ${name} IS IN.`);
-        setInterval(() => { if (bot.entity) bot.chat(Math.random().toString(36).substring(7)); }, 5000);
+        // Random chatter to stay active
+        setInterval(() => { if (bot.entity) bot.chat(Math.random().toString(36).substring(7)); }, 8000);
     });
 
     bot.on('kicked', (reason) => {
         const r = reason.toString();
-        if (r.includes("suspicious") || r.includes("notbot")) {
-            console.log(`[Blocked] ${name}: IP Blacklisted. Retrying next proxy...`);
-            if (useProxy) createBot(id); 
-        } else {
-            console.log(`[Kicked] ${name}: ${r.slice(0, 50)}...`);
-            setTimeout(() => createBot(id), 60000);
-        }
+        console.log(`[Kicked] ${name}: ${r.substring(0, 60)}...`);
+        
+        // If suspicious, wait longer or try new proxy
+        const delay = r.includes("suspicious") ? 120000 : 30000;
+        setTimeout(() => createBot(id), delay);
     });
 
-    bot.on('error', () => {});
+    bot.on('error', (err) => {
+        if (useProxy) createBot(id, name);
+    });
 }
 
 async function main() {
     await refreshProxies();
     for (let i = 0; i < CONFIG.botCount; i++) {
-        setTimeout(() => createBot(i), i * CONFIG.joinDelay);
+        // Slow down the join sequence significantly to avoid IP bans
+        await new Promise(r => setTimeout(r, CONFIG.joinDelay));
+        createBot(i);
     }
 }
 
