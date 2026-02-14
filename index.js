@@ -89,3 +89,7 @@ async function main() {
 }
 
 main();
+// Add this at the very bottom of your script
+setInterval(() => {
+    // This empty interval keeps the process from closing
+}, 1000 * 60 * 60); 
