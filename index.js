@@ -12,9 +12,9 @@ const CONFIG = {
     // Add your SOCKS5 proxies here. Format: { host, port }
     // You need at least 3 proxies to run 10 bots (4 accounts per IP).
     proxies: [
-        { host: '94.130.177.190:9999', port: 1080 },
-        { host: '201.68.215.79:61221', port: 1080 },
-        { host: '110.235.248.142:1080', port: 1080 }
+        { host: '94.130.177.190', port: 9999 },
+        { host: '201.68.215.79', port: 61221 },
+        { host: '110.235.248.142', port: 1080 }
     ]
 };
 
