@@ -1,13 +1,14 @@
 const mineflayer = require('mineflayer');
 
-const HOST = 'noBnoT.org'; // Keep the quotes!
-const PORT = parseInt(process.env.SERVER_PORT) || 25565;
-const MAX_BOTS = parseInt(process.env.BOT_COUNT) || 3;
-const PASSWORD = process.env.BOT_PASSWORD || "EaglerBot123!";
-
-// INCREASED DELAYS to bypass "Logging in too fast"
-const JOIN_DELAY = 5000; // 15 seconds between bots
-const RECONNECT_DELAY = 5000; // 20 seconds after a kick
+// === EDIT THESE SETTINGS ONLY ===
+const SERVER_SETTINGS = {
+    host: 'noBnoT.org',       // The Java IP (no wss://)
+    port: 25565,                  // Usually 25565
+    botCount: 5,                  // Number of bots
+    password: 'BotPassword123!',  // Password for /register
+    joinDelay: 2500,             
+    spamSpeed: 1000               
+};
 
 let activeBots = [];
 
@@ -15,56 +16,61 @@ function randomStr(len) {
     return Math.random().toString(36).substring(2, 2 + len);
 }
 
-function createBot(id, customName = null) {
-    const name = customName || `k0ngazFan${randomStr(5)}`;
-    console.log(`[Attempt] Deploying ${name}...`);
+function createBot(id) {
+    const name = `Bot_${randomStr(5)}`;
+    console.log(`[${id + 1}] Launching ${name}...`);
 
     const bot = mineflayer.createBot({
-        host: HOST,
-        port: PORT,
+        host: SERVER_SETTINGS.host,
+        port: SERVER_SETTINGS.port,
         username: name,
-        version: "1.8.8"
+        version: '1.8.8'
     });
 
+    // AUTO-LOGIN & REGISTER
     bot.on('message', (jsonMsg) => {
         const msg = jsonMsg.toString().toLowerCase();
-        if (msg.includes("/register")) bot.chat(`/register ${PASSWORD} ${PASSWORD}`);
-        if (msg.includes("/login")) bot.chat(`/login ${PASSWORD}`);
+        if (msg.includes("/register")) {
+            bot.chat(`/register ${SERVER_SETTINGS.password} ${SERVER_SETTINGS.password}`);
+        } else if (msg.includes("/login")) {
+            bot.chat(`/login ${SERVER_SETTINGS.password}`);
+        }
     });
 
+    // START SPAMMING AS SOON AS THIS SPECIFIC BOT IS READY
     bot.on('spawn', () => {
+        console.log(`>>> ${bot.username} is in and active.`);
+        
+        // Add to active list if not already there
         if (!activeBots.find(b => b.username === bot.username)) {
             activeBots.push(bot);
-            console.log(`>>> SUCCESS: ${bot.username} is in.`);
         }
-        if (activeBots.length === MAX_BOTS) startGlobalBroadcast();
+
+        // Start this bot's individual spam loop
+        const spamInterval = setInterval(() => {
+            if (bot && bot.entity) {
+                bot.chat(randomStr(8).toUpperCase());
+            } else {
+                clearInterval(spamInterval);
+            }
+        }, SERVER_SETTINGS.spamSpeed);
     });
 
+    // AUTO-RECONNECT ON KICK
     bot.on('kicked', (reason) => {
-        const kickMsg = reason.toString();
-        console.log(`[!] ${name} kicked.`);
-
-        // SPECIAL BYPASS: If the server says "Join back immediately", we do exactly that.
-        if (kickMsg.includes("analyzing") || kickMsg.includes("immediately")) {
-            console.log(`[Bypass] Re-joining ${name} instantly...`);
-            setTimeout(() => createBot(id, name), 1000); 
-        } else {
-            // Otherwise, wait longer to avoid the "Too Fast" error
-            activeBots = activeBots.filter(b => b.username !== name);
-            setTimeout(() => createBot(id), RECONNECT_DELAY);
-        }
+        console.log(`[!] ${name} kicked: ${reason}`);
+        activeBots = activeBots.filter(b => b.username !== name);
+        
+        // If it's the "Analyzing" kick, join back fast. Otherwise, wait.
+        const delay = reason.includes("analyzing") ? 2000 : 20000;
+        setTimeout(() => createBot(id), delay);
     });
 
-    bot.on('error', () => {}); // Silencing errors to keep logs clean
+    bot.on('error', (err) => console.log(`Error on ${name}: ${err.code}`));
 }
 
-function startGlobalBroadcast() {
-    setInterval(() => {
-        activeBots.forEach(bot => bot.chat(`[${randomStr(6).toUpperCase()}]`));
-    }, 2500);
-}
-
-// Start very slowly
-for (let i = 0; i < MAX_BOTS; i++) {
-    setTimeout(() => createBot(i), i * JOIN_DELAY);
+// Start the sequence
+console.log(`Starting deployment for ${SERVER_SETTINGS.botCount} bots...`);
+for (let i = 0; i < SERVER_SETTINGS.botCount; i++) {
+    setTimeout(() => createBot(i), i * SERVER_SETTINGS.joinDelay);
 }
