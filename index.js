@@ -17,7 +17,7 @@ function randomStr(len) {
 }
 
 function createBot(id) {
-    const name = `Bot_${randomStr(5)}`;
+    const name = `K0ngaz_Fan_${randomStr(10)}`;
     console.log(`[${id + 1}] Launching ${name}...`);
 
     const bot = mineflayer.createBot({
