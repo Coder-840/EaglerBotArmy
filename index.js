@@ -1,9 +1,8 @@
 const mineflayer = require('mineflayer');
+const eaglercraft = require('mineflayer-eaglercraft');
 
-// Configuration
 const SETTINGS = {
-  host: 'noBnoT.org', // The target server IP
-  port: 25565,
+  url: 'wss://eagler.noBnoT.org', // Use the full WebSocket URL
   version: '1.12.2',
   message: '>Domplayzallgames LOVES SPREADING_DARK and they are a really happy couple. Thye cuddle every night in bed :D',
   botCount: 3
@@ -15,37 +14,39 @@ function generateName() {
 
 function createBot() {
   const name = generateName();
-  console.log(`Deploying bot: ${name}`);
+  console.log(`Attempting to join: ${name}`);
 
   const bot = mineflayer.createBot({
-    host: SETTINGS.host,
-    port: SETTINGS.port,
+    connect: eaglercraft.createConnector(SETTINGS.url),
     username: name,
     version: SETTINGS.version
   });
 
   bot.once('spawn', () => {
-    console.log(`${name} joined.`);
-    // Automatically register and login
+    console.log(`${name} successfully spawned.`);
+    
+    // Commands for Eaglercraft servers
     bot.chat(`/register Password123 Password123`);
     bot.chat(`/login Password123`);
     
-    // Wait 3 seconds, send message, then leave
     setTimeout(() => {
       bot.chat(SETTINGS.message);
+      console.log(`${name} sent message.`);
+      
       setTimeout(() => {
         bot.quit();
-        console.log(`${name} left. Restarting in 5s...`);
-        setTimeout(createBot, 1000); // Cycle to a new bot
+        console.log(`${name} left. Restarting cycle...`);
+        setTimeout(createBot, 5000); 
       }, 2000);
-    }, 3000);
+    }, 4000);
   });
 
-  bot.on('error', (err) => console.log(`Error for ${name}:`, err));
-  bot.on('kicked', (reason) => console.log(`${name} kicked:`, reason));
+  bot.on('error', (err) => console.log(`[Error] ${name}:`, err.message));
+  bot.on('kicked', (reason) => console.log(`[Kicked] ${name}:`, reason));
+  bot.on('end', () => console.log(`[Disconnected] ${name}`));
 }
 
-// Start the trio
+// Start the trio with staggered joins
 for (let i = 0; i < SETTINGS.botCount; i++) {
-  setTimeout(() => createBot(), i * 2000); // Stagger joins
+  setTimeout(() => createBot(), i * 3000);
 }
