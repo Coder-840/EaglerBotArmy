@@ -6,12 +6,12 @@ const SERVER = {
   version: false
 };
 
-const PASSWORD = 'Password123'; // for /register and /login
-
-let activeBots = [];
+const PASSWORD = 'Password123'; // password for /register or /login
 const MAX_BOTS = 3;
 
-// Random bot name
+let activeBots = [];
+
+// Generate random bot name
 function randomName() {
   return 'Bot' + Math.floor(Math.random() * 10000);
 }
@@ -28,23 +28,35 @@ function spawnBot() {
 
   activeBots.push(bot);
 
+  let loggedIn = false;
+
   bot.once('spawn', () => {
     console.log(`${name} spawned.`);
 
-    // Auto register/login
+    // Listen for server messages to detect registration/login prompts
     bot.on('messagestr', message => {
-      if (message.toLowerCase().includes('/register')) {
-        bot.chat(`/register ${PASSWORD} ${PASSWORD}`);
-      } else if (message.toLowerCase().includes('/login')) {
-        bot.chat(`/login ${PASSWORD}`);
+      const msg = message.toLowerCase();
+
+      // Only send register/login if not already logged in
+      if (!loggedIn) {
+        if (msg.includes('/register')) {
+          console.log(`${name} registering...`);
+          bot.chat(`/register ${PASSWORD} ${PASSWORD}`);
+        } else if (msg.includes('/login')) {
+          console.log(`${name} logging in...`);
+          bot.chat(`/login ${PASSWORD}`);
+        } else if (msg.includes('welcome') || msg.includes('joined')) {
+          // Mark bot as fully logged in once server confirms join
+          loggedIn = true;
+
+          // Say Hello and leave shortly after
+          setTimeout(() => {
+            bot.chat('Hello!');
+            setTimeout(() => bot.quit('Goodbye!'), 3000 + Math.random() * 2000);
+          }, 2000);
+        }
       }
     });
-
-    // Wait a little and say hello
-    setTimeout(() => {
-      bot.chat('Hello!');
-      setTimeout(() => bot.quit('Goodbye!'), 3000 + Math.random() * 2000);
-    }, 4000); // wait 4s for register/login to happen
   });
 
   bot.on('end', () => {
@@ -67,5 +79,5 @@ function maintainBots() {
   }
 }
 
-// Start
+// Start the system
 maintainBots();
