@@ -1,76 +1,71 @@
 const mineflayer = require("mineflayer")
 
-// ===== CONFIG =====
 const HOST = "noBnoT.org"
 const PORT = 25565
 const VERSION = "1.12.2"
-const MESSAGE = "Hello from bot!"
-const PASSWORD = "botpass"
-const DELAY = 30000 // wait 30s before restarting
-const BOT_COUNT = 3
-const JOIN_STAGGER = 5000 // 5s between bot joins
-// ==================
+const PASSWORD = "Test123"
+const MESSAGE = "Hello"
 
 function randomName() {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-  return Array.from({ length: 10 }, () =>
-    chars[Math.floor(Math.random() * chars.length)]
-  ).join("")
+  let name = ""
+  for (let i = 0; i < 10; i++) {
+    name += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return name
 }
 
-function startBot(id) {
-  const username = randomName()
-  const bot = mineflayer.createBot({
-    host: HOST,
-    port: PORT,
-    username,
-    version: VERSION
-  })
+function createBot(name) {
+  return new Promise(resolve => {
 
-  console.log(`Bot ${id} joining as ${username}`)
+    console.log("Starting bot:", name)
 
-  let registered = false
-  let loggedIn = false
+    const bot = mineflayer.createBot({
+      host: HOST,
+      port: PORT,
+      username: name,
+      version: VERSION
+    })
 
-  // Wait for server login packet
-  bot.once("login", () => {
-    console.log(`Bot ${id} connected, waiting for registration/login readiness...`)
+    bot.once("spawn", () => {
+      console.log(name, "spawned")
 
-    // Delay a bit to ensure server is ready for commands
-    setTimeout(() => {
-      bot.chat(`/register ${PASSWORD} ${PASSWORD}`)
-      bot.chat(`/login ${PASSWORD}`)
-    }, 2000)
-  })
+      setTimeout(() => {
+        bot.chat(`/register ${PASSWORD} ${PASSWORD}`)
+        bot.chat(`/login ${PASSWORD}`)
 
-  // Listen for messages to detect successful login or registration
-  bot.on("message", (msg) => {
-    const text = msg.toString().toLowerCase()
-    if (!registered && text.includes("successfully registered")) {
-      registered = true
-      console.log(`Bot ${id} registered successfully`)
-    }
-    if (!loggedIn && (text.includes("welcome") || text.includes("logged in"))) {
-      loggedIn = true
-      console.log(`Bot ${id} logged in successfully`)
-      bot.chat(MESSAGE)
+        setTimeout(() => {
+          bot.chat(MESSAGE)
 
-      // Disconnect a few seconds after chatting
-      setTimeout(() => bot.quit(), 4000)
-    }
-  })
+          setTimeout(() => {
+            bot.quit()
+          }, 2000)
 
-  bot.on("end", () => {
-    console.log(`Bot ${id} disconnected, restarting in ${DELAY / 1000}s...`)
-    setTimeout(() => startBot(id), DELAY)
-  })
+        }, 2000)
 
-  bot.on("error", (err) => {
-    console.log(`Bot ${id} error: ${err.message}`)
+      }, 2000)
+    })
+
+    bot.on("end", () => {
+      console.log(name, "disconnected")
+      resolve()
+    })
+
+    bot.on("error", err => {
+      console.log(name, "error:", err.message)
+    })
   })
 }
 
-// Stagger bot joins to avoid server spam
-for (let i = 1; i <= BOT_COUNT; i++) {
-  setTimeout(() => startBot(i), (i - 1) * JOIN_STAGGER)
+async function run() {
+  for (let i = 0; i < 3; i++) {
+    const name = randomName()
+    await createBot(name)
+    await new Promise(r => setTimeout(r, 3000))
+  }
+
+  console.log("All bots finished.")
+  process.exit(0)
 }
+
+run()
