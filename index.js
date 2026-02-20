@@ -1,51 +1,48 @@
-const mineflayer = require('mineflayer');
-const eaglercraft = require('mineflayer-eaglercraft');
+const mineflayer = require("mineflayer")
 
-const SETTINGS = {
-  url: 'wss://eagler.noBnoT.org',
-  version: '1.12.2',
-  message: '>Domplayzallgames LOVES SPREADING_DARK and they are a really happy couple. Thye cuddle every night in bed :D',
-  botCount: 3
-};
+// ===== CONFIG =====
+const HOST = "noBnoT.org"
+const PORT = 25565
+const VERSION = "1.12.2"
+const MESSAGE = "Hello from bot!"
+const PASSWORD = "botpass"
+const DELAY = 15000
+// ==================
 
-function generateName() {
-  return 'Bot_' + Math.random().toString(36).substring(2, 8);
+function randomName() {
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  return Array.from({ length: 10 }, () =>
+    chars[Math.floor(Math.random() * chars.length)]
+  ).join("")
 }
 
-function createBot() {
-  const name = generateName();
-  console.log(`[Connecting] ${name}`);
+function startBot(id) {
+  const username = randomName()
 
   const bot = mineflayer.createBot({
-    connect: eaglercraft.createConnector(SETTINGS.url),
-    username: name,
-    version: SETTINGS.version
-  });
+    host: HOST,
+    port: PORT,
+    username,
+    version: VERSION
+  })
 
-  bot.once('spawn', () => {
-    console.log(`[Spawned] ${name}`);
-    
-    // Most Eaglercraft servers use these for initial entry
-    bot.chat(`/register Password123 Password123`);
-    bot.chat(`/login Password123`);
-    
-    setTimeout(() => {
-      bot.chat(SETTINGS.message);
-      console.log(`[Action] ${name} sent message.`);
-      
-      setTimeout(() => {
-        bot.quit();
-        console.log(`[Cycle] ${name} left. Next bot in 5s...`);
-        setTimeout(createBot, 5000); 
-      }, 2000);
-    }, 4000);
-  });
+  console.log(`Bot ${id} joining as ${username}`)
 
-  bot.on('error', (err) => console.log(`[Error] ${name}:`, err.message));
-  bot.on('kicked', (reason) => console.log(`[Kicked] ${name}:`, reason));
+  bot.once("spawn", () => {
+    setTimeout(() => bot.chat(`/register ${PASSWORD} ${PASSWORD}`), 2000)
+    setTimeout(() => bot.chat(MESSAGE), 4000)
+    setTimeout(() => bot.quit(), 6000)
+  })
+
+  bot.on("end", () => {
+    console.log(`Bot ${id} restarting...`)
+    setTimeout(() => startBot(id), DELAY)
+  })
+
+  bot.on("error", err => {
+    console.log(`Bot ${id} error: ${err.message}`)
+  })
 }
 
-// Start initial trio
-for (let i = 0; i < SETTINGS.botCount; i++) {
-  setTimeout(() => createBot(), i * 4000); // Staggered join to avoid IP bans
-}
+// launch 3 bots
+for (let i = 1; i <= 3; i++) startBot(i)
