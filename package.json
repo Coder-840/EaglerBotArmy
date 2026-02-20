@@ -1,12 +1,9 @@
 {
-  "name": "trio-bot",
+  "name": "musketeers-bots",
   "version": "1.0.0",
   "main": "index.js",
-  "license": "MIT",
+  "type": "module",
   "dependencies": {
-    "mineflayer": "^4.20.1"
-  },
-  "scripts": {
-    "start": "node index.js"
+    "mineflayer": "^4.0.1"
   }
 }
