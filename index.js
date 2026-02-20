@@ -1,71 +1,58 @@
-const mineflayer = require("mineflayer")
+import mineflayer from 'mineflayer';
 
-const HOST = "noBnoT.org"
-const PORT = 25565
-const VERSION = "1.12.2"
-const PASSWORD = "Test123"
-const MESSAGE = "Hello"
+const SERVER = {
+  host: 'noBnoT.org',
+  port: 25565,
+  version: false
+};
 
+let activeBots = [];
+const MAX_BOTS = 3;
+
+// Helper to generate random bot names
 function randomName() {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-  let name = ""
-  for (let i = 0; i < 10; i++) {
-    name += chars[Math.floor(Math.random() * chars.length)]
+  return 'Bot' + Math.floor(Math.random() * 10000);
+}
+
+// Function to spawn a single bot
+function spawnBot() {
+  const name = randomName();
+  const bot = mineflayer.createBot({
+    host: SERVER.host,
+    port: SERVER.port,
+    username: name,
+    version: SERVER.version
+  });
+
+  activeBots.push(bot);
+
+  bot.once('spawn', () => {
+    console.log(`${name} joined the server.`);
+    bot.chat('Hello!');
+    setTimeout(() => {
+      bot.quit('Goodbye!');
+    }, 3000 + Math.random() * 2000); // Wait 3-5s then leave
+  });
+
+  bot.on('end', () => {
+    console.log(`${name} left.`);
+    activeBots = activeBots.filter(b => b !== bot);
+    maintainBots();
+  });
+
+  bot.on('error', err => {
+    console.log(`${name} error:`, err.message);
+    activeBots = activeBots.filter(b => b !== bot);
+    maintainBots();
+  });
+}
+
+// Make sure we always have 3 bots
+function maintainBots() {
+  while (activeBots.length < MAX_BOTS) {
+    spawnBot();
   }
-  return name
 }
 
-function createBot(name) {
-  return new Promise(resolve => {
-
-    console.log("Starting bot:", name)
-
-    const bot = mineflayer.createBot({
-      host: HOST,
-      port: PORT,
-      username: name,
-      version: VERSION
-    })
-
-    bot.once("spawn", () => {
-      console.log(name, "spawned")
-
-      setTimeout(() => {
-        bot.chat(`/register ${PASSWORD} ${PASSWORD}`)
-        bot.chat(`/login ${PASSWORD}`)
-
-        setTimeout(() => {
-          bot.chat(MESSAGE)
-
-          setTimeout(() => {
-            bot.quit()
-          }, 2000)
-
-        }, 2000)
-
-      }, 2000)
-    })
-
-    bot.on("end", () => {
-      console.log(name, "disconnected")
-      resolve()
-    })
-
-    bot.on("error", err => {
-      console.log(name, "error:", err.message)
-    })
-  })
-}
-
-async function run() {
-  for (let i = 0; i < 3; i++) {
-    const name = randomName()
-    await createBot(name)
-    await new Promise(r => setTimeout(r, 3000))
-  }
-
-  console.log("All bots finished.")
-  process.exit(0)
-}
-
-run()
+// Start the process
+maintainBots();
