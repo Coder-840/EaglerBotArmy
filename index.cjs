@@ -1,6 +1,6 @@
 const mineflayer = require('mineflayer')
 
-const HOST = "YOUR.SERVER.IP"
+const HOST = "noBnoT.org"
 const PORT = 25565
 const PASSWORD = "yourpassword"
 const WORDS = ["Hello", "Hi", "Hey", "Yo", "Sup"]
