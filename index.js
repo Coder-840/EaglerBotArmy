@@ -6,15 +6,17 @@ const SERVER = {
   version: false
 };
 
+const PASSWORD = 'Password123'; // for /register and /login
+
 let activeBots = [];
 const MAX_BOTS = 3;
 
-// Helper to generate random bot names
+// Random bot name
 function randomName() {
   return 'Bot' + Math.floor(Math.random() * 10000);
 }
 
-// Function to spawn a single bot
+// Spawn a single bot
 function spawnBot() {
   const name = randomName();
   const bot = mineflayer.createBot({
@@ -27,11 +29,22 @@ function spawnBot() {
   activeBots.push(bot);
 
   bot.once('spawn', () => {
-    console.log(`${name} joined the server.`);
-    bot.chat('Hello!');
+    console.log(`${name} spawned.`);
+
+    // Auto register/login
+    bot.on('messagestr', message => {
+      if (message.toLowerCase().includes('/register')) {
+        bot.chat(`/register ${PASSWORD} ${PASSWORD}`);
+      } else if (message.toLowerCase().includes('/login')) {
+        bot.chat(`/login ${PASSWORD}`);
+      }
+    });
+
+    // Wait a little and say hello
     setTimeout(() => {
-      bot.quit('Goodbye!');
-    }, 3000 + Math.random() * 2000); // Wait 3-5s then leave
+      bot.chat('Hello!');
+      setTimeout(() => bot.quit('Goodbye!'), 3000 + Math.random() * 2000);
+    }, 4000); // wait 4s for register/login to happen
   });
 
   bot.on('end', () => {
@@ -47,12 +60,12 @@ function spawnBot() {
   });
 }
 
-// Make sure we always have 3 bots
+// Ensure we always have MAX_BOTS bots
 function maintainBots() {
   while (activeBots.length < MAX_BOTS) {
     spawnBot();
   }
 }
 
-// Start the process
+// Start
 maintainBots();
